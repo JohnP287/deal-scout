@@ -24,11 +24,11 @@ Apply the generated D1 migration before starting the Worker. See the starter's D
 
 ## 30-minute scheduling
 
-The included GitHub Actions workflow calls `/api/scan` every 30 minutes. Configure repository variable `DEALSCOUT_URL` and secret `DEALSCOUT_CRON_SECRET`, then set the same `CRON_SECRET` in the hosted environment.
+The included GitHub Actions workflow calls the fixed DealScout `/api/scan` endpoint every 30 minutes. Configure repository secret `DEALSCOUT_CRON_SECRET`, then set the same `CRON_SECRET` in the hosted environment. Forks should replace the fixed URL with their own verified deployment URL.
 
 ## Adding retailer support
 
-The generic scanner accepts any HTTP(S) product URL and extracts standard `Product` / `Offer` JSON-LD. Retailer-specific adapters can be added in `lib/deals.ts` when a store does not expose standard structured data. Prefer official APIs and feeds wherever possible.
+The scanner accepts HTTPS product pages from an explicit retailer allowlist and validates every redirect before extracting standard `Product` / `Offer` JSON-LD. This prevents the scanner from being used to request private or arbitrary network targets. Retailer-specific adapters can be added in `lib/deals.ts` when a store does not expose standard structured data. Prefer official APIs and feeds wherever possible.
 
 ## License
 
