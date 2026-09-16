@@ -56,8 +56,20 @@ function categoryFor(title: string) {
 }
 function knownMsrp(title: string) { if (/rtx\s*5080.*founders|founders.*rtx\s*5080/i.test(title)) return 99999; if (/rtx\s*5090.*founders|founders.*rtx\s*5090/i.test(title)) return 199999; return 0; }
 export function discoverProductLinks(html: string, sourceUrl: string) {
-  const found = new Map<string, { title: string; url: string; retailer: string; category: string; msrp_cents: number; expected_resale_cents: number | null }>();
-  for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]{0,900}?)<\/a>/gi)) { const title = cleanText(match[2]); if (title.length < 8 || title.length > 220 || !DISCOVERY_KEYWORDS.test(title)) continue; try { const safe = safeRetailerUrl(match[1], sourceUrl); if (!PRODUCT_PATH.test(safe.url.pathname)) continue; safe.url.hash = ""; const url = safe.url.toString(); const msrp = knownMsrp(title); found.set(url, { title, url, retailer: safe.retailer, category: categoryFor(title), msrp_cents: msrp, expected_resale_cents: msrp === 99999 ? 145000 : msrp === 199999 ? 275000 : null }); } catch { /* Ignore non-retailer and malformed links. */ } }
+  const found = new Map<string, { title: string; url: string; retailer: string; category: string; msrp_cents: number; expected_resale_cents: number | null; price_cents: number | null; availability: string | null }>();
+  for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]{0,900}?)<\/a>/gi)) {
+    const title = cleanText(match[2]); if (title.length < 8 || title.length > 220 || !DISCOVERY_KEYWORDS.test(title)) continue;
+    try {
+      const safe = safeRetailerUrl(match[1], sourceUrl); if (!PRODUCT_PATH.test(safe.url.pathname)) continue; safe.url.hash = "";
+      const url = safe.url.toString(); const msrp = knownMsrp(title); const index = match.index ?? 0;
+      const cardEnd = html.indexOf("</li>", index); const rawCard = html.slice(Math.max(0, index - 500), cardEnd > index && cardEnd - index < 14_000 ? cardEnd : index + 7_000);
+      const card = cleanText(rawCard).replace(/\$\s*([0-9,]+)\s*\.\s*(\d{2})/g, "$$$1.$2");
+      const prices = [...card.matchAll(/\$\s*([0-9]{1,5}(?:,[0-9]{3})*(?:\.\d{2})?)/g)].map((p) => Number(p[1].replace(/,/g, ""))).filter((p) => Number.isFinite(p) && p >= 20 && p <= 20_000);
+      const current = prices[0] ?? null; const reference = current == null ? null : prices.find((p) => p > current * 1.03 && p < current * 2.5) ?? null;
+      const known = msrp || (reference ? Math.round(reference * 100) : 0); const inStock = /add to cart|in stock|shipping|pickup|ready in|available/i.test(card);
+      found.set(url, { title, url, retailer: safe.retailer, category: categoryFor(title), msrp_cents: known, expected_resale_cents: msrp === 99999 ? 145000 : msrp === 199999 ? 275000 : null, price_cents: current == null ? null : Math.round(current * 100), availability: inStock ? "InStock" : null });
+    } catch { /* Ignore non-retailer and malformed links. */ }
+  }
   return [...found.values()].slice(0, 80);
 }
 export async function scanProduct(product: ProductRow) {

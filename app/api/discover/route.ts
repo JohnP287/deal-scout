@@ -25,6 +25,7 @@ const STARTERS: Array<[string, string, string, string, number, number]> = [["NVI
 export async function POST(request: Request) {
   if (!(await scanAuthorized(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   await db().batch(STARTERS.map((item) => db().prepare("INSERT OR IGNORE INTO products (title, retailer, url, category, msrp_cents, expected_resale_cents) VALUES (?, ?, ?, ?, ?, ?)").bind(...item)));
+  const checked = await scanActiveProducts(18);
   let discovered = 0; let sourcesChecked = 0; const sourceErrors: string[] = [];
   for (let i = 0; i < SOURCES.length; i += 6) {
     const results = await Promise.all(SOURCES.slice(i, i + 6).map(async (source) => {
@@ -33,8 +34,18 @@ export async function POST(request: Request) {
       catch { return { source, products: [] }; }
       finally { clearTimeout(timeout); }
     }));
-    for (const result of results) { sourcesChecked++; if (!result.products.length) sourceErrors.push(new URL(result.source).hostname); for (const product of result.products) { const insert = await db().prepare("INSERT OR IGNORE INTO products (title, retailer, url, category, msrp_cents, expected_resale_cents) VALUES (?, ?, ?, ?, ?, ?)").bind(product.title, product.retailer, product.url, product.category, product.msrp_cents, product.expected_resale_cents).run(); if (insert.meta.changes) discovered++; } }
+    for (const result of results) {
+      sourcesChecked++; if (!result.products.length) sourceErrors.push(new URL(result.source).hostname);
+      for (const product of result.products) {
+        const insert = await db().prepare("INSERT OR IGNORE INTO products (title, retailer, url, category, msrp_cents, expected_resale_cents) VALUES (?, ?, ?, ?, ?, ?)").bind(product.title, product.retailer, product.url, product.category, product.msrp_cents, product.expected_resale_cents).run();
+        if (insert.meta.changes) discovered++;
+        if (product.msrp_cents > 0) await db().prepare("UPDATE products SET msrp_cents = CASE WHEN msrp_cents = 0 THEN ? ELSE msrp_cents END, updated_at = CURRENT_TIMESTAMP WHERE url = ?").bind(product.msrp_cents, product.url).run();
+        if (product.price_cents != null) {
+          const saved = await db().prepare("SELECT id FROM products WHERE url = ?").bind(product.url).first<{ id: number }>();
+          if (saved) await db().prepare("INSERT INTO observations (product_id, price_cents, currency, availability, condition, confidence, error) VALUES (?, ?, 'USD', ?, 'NewCondition', 82, NULL)").bind(saved.id, product.price_cents, product.availability).run();
+        }
+      }
+    }
   }
-  const checked = await scanActiveProducts(36);
   return Response.json({ discovered, checked, sources_checked: sourcesChecked, sources_without_results: [...new Set(sourceErrors)].length, categories: [...new Set(SEARCHES.map(([, query]) => query))].length, at: new Date().toISOString() });
 }
