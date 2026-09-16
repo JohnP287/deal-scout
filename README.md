@@ -24,7 +24,7 @@ Apply the generated D1 migration before starting the Worker. See the starter's D
 
 ## 30-minute scheduling
 
-The included GitHub Actions workflow calls the fixed DealScout `/api/scan` endpoint every 30 minutes. Configure repository secret `DEALSCOUT_CRON_SECRET`, then set the same `CRON_SECRET` in the hosted environment. Forks should replace the fixed URL with their own verified deployment URL.
+The included GitHub Actions workflow calls the fixed DealScout `/api/scan` endpoint every 30 minutes. It uses GitHub Actions OIDC: the site verifies GitHub's signature plus the repository, branch, audience, event type, and token lifetime. No reusable scheduler secret is required. Forks should replace the fixed URL and expected repository identity with their own verified deployment details.
 
 ## Adding retailer support
 
