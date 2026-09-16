@@ -18,4 +18,4 @@ jobs:
           curl --fail --retry 2 --max-time 120 \
             -X POST \
             -H "Authorization: Bearer $TOKEN" \
-            "https://deal-scout.johnpz287.chatgpt.site/api/scan"
+            "https://deal-scout.johnpz287.chatgpt.site/api/discover"
