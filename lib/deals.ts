@@ -29,10 +29,31 @@ export function extractOffer(html: string) {
   const condition = String(offer?.itemCondition ?? "").split("/").pop() || "NewCondition";
   return { price_cents: Number.isFinite(price) ? Math.round(price * 100) : null, availability, condition, name: typeof product?.name === "string" ? product.name : null, currency: typeof offer?.priceCurrency === "string" ? offer.priceCurrency : "USD", confidence: Number.isFinite(price) ? (availability ? 96 : 88) : 0 };
 }
-const DISCOVERY_KEYWORDS = /rtx\s*50(?:80|90)|geforce\s*rtx|oled|dual?sense|xbox|playstation|nintendo|gaming\s*(?:monitor|laptop|pc)|limited\s*edition/i;
+const DISCOVERY_KEYWORDS = /(?:geforce|rtx|radeon|arc)\s*[a-z0-9 -]*|(?:ryzen|core\s+(?:ultra|i[3579]))\s*[a-z0-9 -]*|(?:gaming|ddr[45]|nvme|pcie)\s*(?:desktop|pc|laptop|monitor|motherboard|memory|ram|ssd)|(?:motherboard|graphics\s*card|video\s*card|mechanical\s*keyboard|gaming\s*mouse|gaming\s*headset|capture\s*card|stream\s*deck|webcam|microphone|wifi\s*[67e]*\s*router|gaming\s*router)|oled|qd-oled|woled|dual?sense|xbox|playstation|ps5|nintendo|switch|steam\s*deck|rog\s*ally|legion\s*go|meta\s*quest|vr\s*headset|limited\s*edition/i;
 const PRODUCT_PATH = /(?:\/site\/[^"?#]+\/\d+\.p|\/product\/\d+\/[^"?#]+|\/p\/[A-Z0-9-]+|\/ip\/[^"?#]+\/\d+|\/dp\/[A-Z0-9]{10}|\/-\/A-\d+|\/products?\/[^"?#]+|\/consumer\/graphics-cards\/[^"?#]+)/i;
 function cleanText(value: string) { return value.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim(); }
-function categoryFor(title: string) { if (/rtx|geforce|radeon/i.test(title)) return "GPU"; if (/monitor/i.test(title)) return "Monitor"; if (/oled|tv/i.test(title)) return "TV"; if (/controller|dualsense/i.test(title)) return "Controller"; if (/playstation|xbox|switch|console/i.test(title)) return "Console"; return "Gaming hardware"; }
+function categoryFor(title: string) {
+  if (/rtx|geforce|radeon|graphics\s*card|video\s*card/i.test(title)) return "GPU";
+  if (/ryzen|core\s+(?:ultra|i[3579])|processor|\bcpu\b/i.test(title)) return "CPU";
+  if (/motherboard|\b(?:b[68]\d\d|x[68]\d\d|z[789]\d\d)\b/i.test(title)) return "Motherboard";
+  if (/\b(?:ddr[45]|ram|memory)\b/i.test(title)) return "Memory";
+  if (/\b(?:nvme|ssd|solid state|m\.2)\b/i.test(title)) return "Storage";
+  if (/gaming\s*laptop|notebook/i.test(title)) return "Gaming laptop";
+  if (/gaming\s*(?:desktop|pc)|prebuilt/i.test(title)) return "Gaming desktop";
+  if (/monitor|display/i.test(title)) return "Monitor";
+  if (/oled|television|\btv\b/i.test(title)) return "TV";
+  if (/steam\s*deck|rog\s*ally|legion\s*go|handheld/i.test(title)) return "Handheld";
+  if (/controller|dualsense|gamepad/i.test(title)) return "Controller";
+  if (/keyboard/i.test(title)) return "Keyboard";
+  if (/\bmouse\b/i.test(title)) return "Mouse";
+  if (/headset|headphone/i.test(title)) return "Headset";
+  if (/microphone|\bmic\b|speaker|mixamp|audio interface/i.test(title)) return "Audio";
+  if (/capture\s*card|stream\s*deck|webcam|camera/i.test(title)) return "Streaming";
+  if (/router|mesh|ethernet|network/i.test(title)) return "Networking";
+  if (/meta\s*quest|vr\s*headset|virtual reality/i.test(title)) return "VR";
+  if (/playstation|ps5|xbox|nintendo|switch|console/i.test(title)) return "Console";
+  return "Gaming hardware";
+}
 function knownMsrp(title: string) { if (/rtx\s*5080.*founders|founders.*rtx\s*5080/i.test(title)) return 99999; if (/rtx\s*5090.*founders|founders.*rtx\s*5090/i.test(title)) return 199999; return 0; }
 export function discoverProductLinks(html: string, sourceUrl: string) {
   const found = new Map<string, { title: string; url: string; retailer: string; category: string; msrp_cents: number; expected_resale_cents: number | null }>();
