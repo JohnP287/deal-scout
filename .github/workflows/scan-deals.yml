@@ -10,7 +10,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Check tracked retailer pages
+      - uses: actions/checkout@v4
+      - name: Discover and verify gaming deals
         run: |
           TOKEN="$(curl --fail --silent --show-error \
             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
@@ -19,3 +20,6 @@ jobs:
             -X POST \
             -H "Authorization: Bearer $TOKEN" \
             "https://deal-scout.johnpz287.chatgpt.site/api/discover"
+          OIDC_TOKEN="$TOKEN" \
+            SITE_URL="https://deal-scout.johnpz287.chatgpt.site" \
+            node scripts/github-scan.mjs

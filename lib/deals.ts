@@ -2,7 +2,10 @@ import { env } from "cloudflare:workers";
 
 export type ProductRow = { id: number; title: string; retailer: string; url: string; category: string; msrp_cents: number; expected_resale_cents: number | null; active: number };
 export function db() { if (!env.DB) throw new Error("Deal database unavailable"); return env.DB; }
-const RETAILERS: Record<string, string> = { "bestbuy.com": "Best Buy", "microcenter.com": "Micro Center", "nvidia.com": "NVIDIA", "newegg.com": "Newegg", "walmart.com": "Walmart", "amazon.com": "Amazon", "target.com": "Target", "gamestop.com": "GameStop" };
+export const RETAILERS: Record<string, string> = {
+  "bestbuy.com": "Best Buy", "microcenter.com": "Micro Center", "nvidia.com": "NVIDIA", "newegg.com": "Newegg", "walmart.com": "Walmart", "amazon.com": "Amazon", "target.com": "Target", "gamestop.com": "GameStop",
+  "bhphotovideo.com": "B&H Photo", "adorama.com": "Adorama", "dell.com": "Dell", "hp.com": "HP", "lenovo.com": "Lenovo", "asus.com": "ASUS", "acer.com": "Acer", "samsung.com": "Samsung", "lg.com": "LG", "sony.com": "Sony", "corsair.com": "Corsair", "logitechg.com": "Logitech G", "razer.com": "Razer", "woot.com": "Woot"
+};
 export function safeRetailerUrl(value: string, base?: string) {
   const url = new URL(value, base);
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
@@ -27,10 +30,11 @@ export function extractOffer(html: string) {
   const price = typeof priceValue === "number" ? priceValue : typeof priceValue === "string" ? Number(priceValue.replace(/[^0-9.]/g, "")) : NaN;
   const availability = String(offer?.availability ?? "").split("/").pop() || null;
   const condition = String(offer?.itemCondition ?? "").split("/").pop() || "NewCondition";
-  return { price_cents: Number.isFinite(price) ? Math.round(price * 100) : null, availability, condition, name: typeof product?.name === "string" ? product.name : null, currency: typeof offer?.priceCurrency === "string" ? offer.priceCurrency : "USD", confidence: Number.isFinite(price) ? (availability ? 96 : 88) : 0 };
+  const promoMatch = cleanText(html).match(/(?:promo(?:tional)?|coupon)\s+code(?:\s+is|\s*:)?\s+[“\"']?([A-Z0-9][A-Z0-9-]{2,24})\b/i) ?? cleanText(html).match(/\buse\s+code\s+[“\"']?([A-Z0-9][A-Z0-9-]{2,24})\b/i);
+  return { price_cents: Number.isFinite(price) ? Math.round(price * 100) : null, availability, condition, name: typeof product?.name === "string" ? product.name : null, currency: typeof offer?.priceCurrency === "string" ? offer.priceCurrency : "USD", confidence: Number.isFinite(price) ? (availability ? 96 : 88) : 0, promo_code: promoMatch?.[1]?.toUpperCase() ?? null, promotion_text: promoMatch ? promoMatch[0].slice(0, 160) : null };
 }
 const DISCOVERY_KEYWORDS = /(?:geforce|rtx|radeon|arc)\s*[a-z0-9 -]*|(?:ryzen|core\s+(?:ultra|i[3579]))\s*[a-z0-9 -]*|(?:gaming|ddr[45]|nvme|pcie)\s*(?:desktop|pc|laptop|monitor|motherboard|memory|ram|ssd)|(?:motherboard|graphics\s*card|video\s*card|mechanical\s*keyboard|gaming\s*mouse|gaming\s*headset|capture\s*card|stream\s*deck|webcam|microphone|wifi\s*[67e]*\s*router|gaming\s*router)|oled|qd-oled|woled|dual?sense|xbox|playstation|ps5|nintendo|switch|steam\s*deck|rog\s*ally|legion\s*go|meta\s*quest|vr\s*headset|limited\s*edition/i;
-const PRODUCT_PATH = /(?:\/site\/[^"?#]+\/\d+\.p|\/product\/\d+\/[^"?#]+|\/p\/[A-Z0-9-]+|\/ip\/[^"?#]+\/\d+|\/dp\/[A-Z0-9]{10}|\/-\/A-\d+|\/products?\/[^"?#]+|\/consumer\/graphics-cards\/[^"?#]+)/i;
+const PRODUCT_PATH = /(?:\/site\/[^"?#]+\/\d+\.p|\/product\/\d+\/[^"?#]+|\/p\/[A-Z0-9-]+|\/ip\/[^"?#]+\/\d+|\/dp\/[A-Z0-9]{10}|\/-\/A-\d+|\/products?\/[^"?#]+|\/(?:us-en\/)?shop\/pdp\/[^"?#]+|\/consumer\/graphics-cards\/[^"?#]+|\/store\/[^"?#]+|\/gaming\/[^"?#]+)/i;
 function cleanText(value: string) { return value.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim(); }
 function categoryFor(title: string) {
   if (/rtx|geforce|radeon|graphics\s*card|video\s*card/i.test(title)) return "GPU";
@@ -83,6 +87,6 @@ export async function scanProduct(product: ProductRow) {
 }
 export async function scanActiveProducts(limit = 20) {
   const rows = await db().prepare("SELECT id, title, retailer, url, category, msrp_cents, expected_resale_cents, active FROM products WHERE active = 1 ORDER BY coalesce(last_checked_at, '1970-01-01') ASC LIMIT ?").bind(limit).all<ProductRow>(); const products = rows.results ?? []; let checked = 0;
-  for (let i = 0; i < products.length; i += 4) { const results = await Promise.all(products.slice(i, i + 4).map(async (product) => ({ product, offer: await scanProduct(product) }))); await db().batch(results.flatMap(({ product, offer }) => [db().prepare("INSERT INTO observations (product_id, price_cents, currency, availability, condition, confidence, error) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(product.id, offer.price_cents, offer.currency, offer.availability, offer.condition, offer.confidence, offer.error), db().prepare("UPDATE products SET title = coalesce(?, title), last_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(offer.name, product.id)])); checked += results.length; }
+  for (let i = 0; i < products.length; i += 4) { const results = await Promise.all(products.slice(i, i + 4).map(async (product) => ({ product, offer: await scanProduct(product) }))); await db().batch(results.flatMap(({ product, offer }) => [db().prepare("INSERT INTO observations (product_id, price_cents, currency, availability, condition, confidence, error, promo_code, promotion_text, source_type, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'site-direct', ?)").bind(product.id, offer.price_cents, offer.currency, offer.availability, offer.condition, offer.confidence, offer.error, offer.promo_code ?? null, offer.promotion_text ?? null, product.url), db().prepare("UPDATE products SET title = coalesce(?, title), last_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(offer.name, product.id)])); checked += results.length; }
   return checked;
 }
