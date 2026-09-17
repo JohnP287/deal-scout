@@ -6,4 +6,7 @@ export const products = sqliteTable("products", {
 });
 export const observations = sqliteTable("observations", {
   id: integer("id").primaryKey({ autoIncrement: true }), productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }), priceCents: integer("price_cents"), currency: text("currency"), availability: text("availability"), condition: text("condition"), confidence: integer("confidence"), error: text("error"), checkedAt: text("checked_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-}, (table) => [index("idx_observations_product_checked").on(table.productId, table.checkedAt)]);
+}, (table) => [
+  index("idx_observations_product_checked").on(table.productId, table.checkedAt),
+  index("idx_observations_product_success").on(table.productId, table.checkedAt).where(sql`${table.priceCents} IS NOT NULL`),
+]);

@@ -61,7 +61,7 @@ export function discoverProductLinks(html: string, sourceUrl: string) {
     const title = cleanText(match[2]); if (title.length < 8 || title.length > 220 || !DISCOVERY_KEYWORDS.test(title)) continue;
     try {
       const safe = safeRetailerUrl(match[1], sourceUrl); if (!PRODUCT_PATH.test(safe.url.pathname)) continue; safe.url.hash = "";
-      const url = safe.url.toString(); const msrp = knownMsrp(title); const index = match.index ?? 0;
+      safe.url.search = ""; const url = safe.url.toString(); const msrp = knownMsrp(title); const index = match.index ?? 0;
       const cardEnd = html.indexOf("</li>", index); const rawCard = html.slice(Math.max(0, index - 500), cardEnd > index && cardEnd - index < 14_000 ? cardEnd : index + 7_000);
       const card = cleanText(rawCard).replace(/\$\s*([0-9,]+)\s*\.\s*(\d{2})/g, "$$$1.$2");
       const prices = [...card.matchAll(/\$\s*([0-9]{1,5}(?:,[0-9]{3})*(?:\.\d{2})?)/g)].map((p) => Number(p[1].replace(/,/g, ""))).filter((p) => Number.isFinite(p) && p >= 20 && p <= 20_000);

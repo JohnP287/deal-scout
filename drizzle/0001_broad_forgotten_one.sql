@@ -1,0 +1,1 @@
+CREATE INDEX `idx_observations_product_success` ON `observations` (`product_id`,`checked_at`) WHERE "observations"."price_cents" IS NOT NULL;
