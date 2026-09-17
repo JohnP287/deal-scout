@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DealScout — Resale Deal Intelligence",
-  description: "Track new, sealed products at MSRP or below with verified stock, pricing, and resale profit estimates.",
+  title: "DealScout — Verified Gaming Deals",
+  description: "Find brand-new gaming tech at or below official MSRP, including verified discounts and retailer promo codes.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

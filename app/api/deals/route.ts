@@ -32,8 +32,16 @@ export async function GET() {
     return { ...row, error: row.last_error, checked_at: row.price_checked_at, status, data_state: dataState, confidence_score: confidence, price_trusted: trustedSource, price_source: price ? sourceLabel : "No successful source", discount_percent: discount, tax_cents: tax, fees_cents: fees, acquisition_cents: acquisition, resale_comp_cents: resale, resale_source: resale ? "Curated resale target" : "No verified resale comp", reference_source: hasReference ? (/founders edition/i.test(String(row.title)) ? "Manufacturer MSRP" : "Retailer reference") : "No verified MSRP", net_profit_cents: net, roi_percent: roi, deal_score: score, refresh_failed: refreshFailed, age_minutes: ageMinutes };
   }).sort((a, b) => Number(b.deal_score) - Number(a.deal_score) || Number(b.price_cents != null) - Number(a.price_cents != null) || String(b.price_checked_at ?? "").localeCompare(String(a.price_checked_at ?? "")));
   const seen = new Set<string>();
-  const deals = ranked.filter((deal) => { const key = `${String(deal.retailer).toLowerCase()}|${String(deal.title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`; if (seen.has(key)) return false; seen.add(key); return true; });
-  return Response.json({ deals });
+  const deals = ranked.filter((deal) => {
+    const price = Number(deal.price_cents); const msrp = Number(deal.msrp_cents);
+    const current = deal.data_state === "LIVE" || deal.data_state === "VERIFIED";
+    const inStock = String(deal.availability ?? "").toLowerCase().includes("instock");
+    const newItem = !deal.condition || String(deal.condition).toLowerCase().includes("new");
+    if (!deal.price_trusted || !current || !inStock || !newItem || price <= 0 || msrp <= 0 || price > msrp) return false;
+    const key = `${String(deal.retailer).toLowerCase()}|${String(deal.title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`;
+    if (seen.has(key)) return false; seen.add(key); return true;
+  });
+  return Response.json({ deals, coverage: { tracked: ranked.length, retailers: new Set(ranked.map((deal) => String(deal.retailer))).size, qualified: deals.length, updated_at: new Date().toISOString() } });
 }
 export async function POST(request: Request) {
   const body = await request.json() as Record<string, string>; let parsed: URL; try { parsed = safeRetailerUrl(body.url).url; } catch { return Response.json({ error: "Use a supported HTTPS retailer or manufacturer product page." }, { status: 400 }); }
