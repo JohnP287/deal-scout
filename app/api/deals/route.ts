@@ -41,7 +41,8 @@ export async function GET() {
     const key = `${String(deal.retailer).toLowerCase()}|${String(deal.title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`;
     if (seen.has(key)) return false; seen.add(key); return true;
   });
-  return Response.json({ deals, coverage: { tracked: ranked.length, retailers: new Set(ranked.map((deal) => String(deal.retailer))).size, qualified: deals.length, updated_at: new Date().toISOString() } });
+  const latestVerified = ranked.reduce((latest, deal) => String(deal.price_checked_at ?? "") > latest ? String(deal.price_checked_at) : latest, "");
+  return Response.json({ deals, coverage: { tracked: ranked.length, retailers: new Set(ranked.map((deal) => String(deal.retailer))).size, qualified: deals.length, updated_at: latestVerified } }, { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=300" } });
 }
 export async function POST(request: Request) {
   const body = await request.json() as Record<string, string>; let parsed: URL; try { parsed = safeRetailerUrl(body.url).url; } catch { return Response.json({ error: "Use a supported HTTPS retailer or manufacturer product page." }, { status: 400 }); }

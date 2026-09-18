@@ -1,4 +1,4 @@
-import { db, discoverProductLinks, fetchRetailerPage, scanActiveProducts } from "@/lib/deals";
+import { db, discoverProductLinks, fetchRetailerPage } from "@/lib/deals";
 import { scanAuthorized } from "@/lib/scan-auth";
 export const dynamic = "force-dynamic";
 const SEARCHES: Array<[string, string]> = [
@@ -41,10 +41,13 @@ const STARTERS: Array<[string, string, string, string, number, number]> = [["NVI
 export async function POST(request: Request) {
   if (!(await scanAuthorized(request))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   await db().batch(STARTERS.map((item) => db().prepare("INSERT OR IGNORE INTO products (title, retailer, url, category, msrp_cents, expected_resale_cents) VALUES (?, ?, ?, ?, ?, ?)").bind(...item)));
-  const checked = await scanActiveProducts(18);
+  const batchSize = 8;
+  const batchCount = Math.ceil(SOURCES.length / batchSize);
+  const batch = Math.floor(Date.now() / 1_800_000) % batchCount;
+  const selectedSources = SOURCES.slice(batch * batchSize, batch * batchSize + batchSize);
   let discovered = 0; let sourcesChecked = 0; const sourceErrors: string[] = [];
-  for (let i = 0; i < SOURCES.length; i += 6) {
-    const results = await Promise.all(SOURCES.slice(i, i + 6).map(async (source) => {
+  for (let i = 0; i < selectedSources.length; i += 6) {
+    const results = await Promise.all(selectedSources.slice(i, i + 6).map(async (source) => {
       const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 9_000);
       try { const response = await fetchRetailerPage(source, controller.signal); return { source, products: discoverProductLinks(await response.text(), source) }; }
       catch { return { source, products: [] }; }
@@ -63,5 +66,5 @@ export async function POST(request: Request) {
       }
     }
   }
-  return Response.json({ discovered, checked, sources_checked: sourcesChecked, sources_without_results: [...new Set(sourceErrors)].length, categories: [...new Set(SEARCHES.map(([, query]) => query))].length, at: new Date().toISOString() });
+  return Response.json({ discovered, batch: batch + 1, batches: batchCount, sources_checked: sourcesChecked, sources_without_results: [...new Set(sourceErrors)].length, categories: [...new Set(SEARCHES.map(([, query]) => query))].length, at: new Date().toISOString() });
 }
