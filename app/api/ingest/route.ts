@@ -36,6 +36,10 @@ export async function POST(request: Request) {
       }
     }
     if (!product) { skipped++; continue; }
+    const incomingMsrp = Number(item.msrp_cents);
+    if (Number.isSafeInteger(incomingMsrp) && incomingMsrp >= price && incomingMsrp <= 2_000_000) {
+      await db().prepare("UPDATE products SET msrp_cents = CASE WHEN msrp_cents = 0 THEN ? ELSE msrp_cents END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(incomingMsrp, product.id).run();
+    }
     const requestedSourceType = clean(item.source_type, 30);
     const listingOnly = requestedSourceType === "github-listing";
     const availability = listingOnly ? "Unknown" : clean(item.availability, 40) || null; const condition = clean(item.condition, 40) || "NewCondition";

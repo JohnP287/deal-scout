@@ -1,4 +1,4 @@
-import { db, retailerFromUrl, safeRetailerUrl } from "@/lib/deals";
+import { APPROVED_SOURCE_COUNT, db, retailerFromUrl, safeRetailerUrl } from "@/lib/deals";
 export const dynamic = "force-dynamic";
 export async function GET() {
   const result = await db().prepare(`SELECT p.*,
@@ -43,7 +43,7 @@ export async function GET() {
     if (seen.has(key)) return false; seen.add(key); return true;
   });
   const latestVerified = ranked.reduce((latest, deal) => String(deal.price_checked_at ?? "") > latest ? String(deal.price_checked_at) : latest, "");
-  return Response.json({ deals, coverage: { tracked: ranked.length, retailers: new Set(ranked.map((deal) => String(deal.retailer))).size, qualified: deals.length, updated_at: latestVerified } }, { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=300" } });
+  return Response.json({ deals, coverage: { tracked: ranked.length, retailers: new Set(ranked.map((deal) => String(deal.retailer))).size, sources: APPROVED_SOURCE_COUNT, qualified: deals.length, updated_at: latestVerified } }, { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=300" } });
 }
 export async function POST(request: Request) {
   const body = await request.json() as Record<string, string>; let parsed: URL; try { parsed = safeRetailerUrl(body.url).url; } catch { return Response.json({ error: "Use a supported HTTPS retailer or manufacturer product page." }, { status: 400 }); }

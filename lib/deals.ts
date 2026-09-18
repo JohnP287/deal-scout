@@ -4,8 +4,11 @@ export type ProductRow = { id: number; title: string; retailer: string; url: str
 export function db() { if (!env.DB) throw new Error("Deal database unavailable"); return env.DB; }
 export const RETAILERS: Record<string, string> = {
   "bestbuy.com": "Best Buy", "microcenter.com": "Micro Center", "nvidia.com": "NVIDIA", "newegg.com": "Newegg", "walmart.com": "Walmart", "amazon.com": "Amazon", "target.com": "Target", "gamestop.com": "GameStop",
-  "bhphotovideo.com": "B&H Photo", "adorama.com": "Adorama", "dell.com": "Dell", "hp.com": "HP", "lenovo.com": "Lenovo", "asus.com": "ASUS", "acer.com": "Acer", "samsung.com": "Samsung", "lg.com": "LG", "sony.com": "Sony", "corsair.com": "Corsair", "logitechg.com": "Logitech G", "razer.com": "Razer", "woot.com": "Woot"
+  "bhphotovideo.com": "B&H Photo", "adorama.com": "Adorama", "dell.com": "Dell", "hp.com": "HP", "lenovo.com": "Lenovo", "asus.com": "ASUS", "acer.com": "Acer", "samsung.com": "Samsung", "lg.com": "LG", "sony.com": "Sony", "corsair.com": "Corsair", "logitechg.com": "Logitech G", "razer.com": "Razer", "woot.com": "Woot",
+  "antonline.com": "Antonline", "centralcomputer.com": "Central Computers", "abt.com": "Abt", "costco.com": "Costco", "steelseries.com": "SteelSeries", "hyperx.com": "HyperX", "elgato.com": "Elgato", "nzxt.com": "NZXT", "msi.com": "MSI", "gigabyte.com": "Gigabyte", "viewsonic.com": "ViewSonic", "amd.com": "AMD", "intel.com": "Intel", "microsoft.com": "Microsoft Store", "playstation.com": "PlayStation Direct", "nintendo.com": "Nintendo", "meta.com": "Meta", "monoprice.com": "Monoprice", "pny.com": "PNY"
 };
+export const APPROVED_SOURCE_COUNT = Object.keys(RETAILERS).length;
+const OFFICIAL_MSRP_DOMAINS = new Set(["nvidia.com", "amd.com", "dell.com", "hp.com", "lenovo.com", "asus.com", "acer.com", "samsung.com", "lg.com", "sony.com", "corsair.com", "logitechg.com", "razer.com", "steelseries.com", "hyperx.com", "elgato.com", "nzxt.com", "msi.com", "gigabyte.com", "viewsonic.com", "microsoft.com", "playstation.com", "nintendo.com", "meta.com", "monoprice.com", "pny.com"]);
 export function safeRetailerUrl(value: string, base?: string) {
   const url = new URL(value, base);
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
@@ -30,11 +33,16 @@ export function extractOffer(html: string) {
   const price = typeof priceValue === "number" ? priceValue : typeof priceValue === "string" ? Number(priceValue.replace(/[^0-9.]/g, "")) : NaN;
   const availability = String(offer?.availability ?? "").split("/").pop() || null;
   const condition = String(offer?.itemCondition ?? "").split("/").pop() || "NewCondition";
-  const promoMatch = cleanText(html).match(/(?:promo(?:tional)?|coupon)\s+code(?:\s+is|\s*:)?\s+[“\"']?([A-Z0-9][A-Z0-9-]{2,24})\b/i) ?? cleanText(html).match(/\buse\s+code\s+[“\"']?([A-Z0-9][A-Z0-9-]{2,24})\b/i);
-  return { price_cents: Number.isFinite(price) ? Math.round(price * 100) : null, availability, condition, name: typeof product?.name === "string" ? product.name : null, currency: typeof offer?.priceCurrency === "string" ? offer.priceCurrency : "USD", confidence: Number.isFinite(price) ? (availability ? 96 : 88) : 0, promo_code: promoMatch?.[1]?.toUpperCase() ?? null, promotion_text: promoMatch ? promoMatch[0].slice(0, 160) : null };
+  const pageText = cleanText(html);
+  const promoMatch = [...pageText.matchAll(/(?:promo(?:tional)?|coupon)\s+code(?:\s+is|\s*:)?\s+[“\"']?([A-Z0-9][A-Z0-9-]{2,24})\b|\buse\s+code\s+[“\"']?([A-Z0-9][A-Z0-9-]{2,24})\b/gi)].find((match) => {
+    const context = pageText.slice(Math.max(0, (match.index ?? 0) - 90), (match.index ?? 0) + match[0].length + 120);
+    return !/expired|has ended|no longer valid|was valid/i.test(context);
+  });
+  const promoCode = promoMatch?.[1] ?? promoMatch?.[2] ?? null;
+  return { price_cents: Number.isFinite(price) ? Math.round(price * 100) : null, availability, condition, name: typeof product?.name === "string" ? product.name : null, currency: typeof offer?.priceCurrency === "string" ? offer.priceCurrency : "USD", confidence: Number.isFinite(price) ? (availability ? 96 : 88) : 0, promo_code: promoCode?.toUpperCase() ?? null, promotion_text: promoMatch ? promoMatch[0].slice(0, 160) : null };
 }
 const DISCOVERY_KEYWORDS = /(?:geforce|rtx|radeon|arc)\s*[a-z0-9 -]*|(?:ryzen|core\s+(?:ultra|i[3579]))\s*[a-z0-9 -]*|(?:gaming|ddr[45]|nvme|pcie)\s*(?:desktop|pc|laptop|monitor|motherboard|memory|ram|ssd)|(?:motherboard|graphics\s*card|video\s*card|mechanical\s*keyboard|gaming\s*mouse|gaming\s*headset|capture\s*card|stream\s*deck|webcam|microphone|wifi\s*[67e]*\s*router|gaming\s*router)|oled|qd-oled|woled|dual?sense|xbox|playstation|ps5|nintendo|switch|steam\s*deck|rog\s*ally|legion\s*go|meta\s*quest|vr\s*headset|limited\s*edition/i;
-const PRODUCT_PATH = /(?:\/site\/[^"?#]+\/\d+\.p|\/product\/\d+\/[^"?#]+|\/p\/[A-Z0-9-]+|\/ip\/[^"?#]+\/\d+|\/dp\/[A-Z0-9]{10}|\/-\/A-\d+|\/products?\/[^"?#]+|\/(?:us-en\/)?shop\/pdp\/[^"?#]+|\/consumer\/graphics-cards\/[^"?#]+|\/store\/[^"?#]+|\/gaming\/[^"?#]+)/i;
+const PRODUCT_PATH = /(?:\/site\/[^"?#]+\/\d+\.p|\/product\/\d+\/[^"?#]+|\/p\/[A-Z0-9-]+|\/ip\/[^"?#]+\/\d+|\/dp\/[A-Z0-9]{10}|\/-\/A-\d+|\/products?\/[^"?#]+|\/(?:us-en\/)?shop\/pdp\/[^"?#]+|\/consumer\/graphics-cards\/[^"?#]+|\/(?:store|gaming)\/[^"?#]+|\/(?:notebooks|monitors|hardware)\/[^"?#]*\d{5,})/i;
 function cleanText(value: string) { return value.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim(); }
 function categoryFor(title: string) {
   if (/rtx|geforce|radeon|graphics\s*card|video\s*card/i.test(title)) return "GPU";
@@ -70,7 +78,10 @@ export function discoverProductLinks(html: string, sourceUrl: string) {
       const card = cleanText(rawCard).replace(/\$\s*([0-9,]+)\s*\.\s*(\d{2})/g, "$$$1.$2");
       const prices = [...card.matchAll(/\$\s*([0-9]{1,5}(?:,[0-9]{3})*(?:\.\d{2})?)/g)].map((p) => Number(p[1].replace(/,/g, ""))).filter((p) => Number.isFinite(p) && p >= 20 && p <= 20_000);
       const current = prices[0] ?? null; const reference = current == null ? null : prices.find((p) => p > current * 1.03 && p < current * 2.5) ?? null;
-      const known = msrp || (reference ? Math.round(reference * 100) : 0);
+      const sourceHost = new URL(sourceUrl).hostname.toLowerCase().replace(/^www\./, "");
+      const officialDomain = [...OFFICIAL_MSRP_DOMAINS].find((domain) => sourceHost === domain || sourceHost.endsWith(`.${domain}`));
+      const officialPrice = officialDomain && current != null ? Math.round((reference ?? current) * 100) : 0;
+      const known = msrp || officialPrice;
       found.set(url, { title, url, retailer: safe.retailer, category: categoryFor(title), msrp_cents: known, expected_resale_cents: msrp === 99999 ? 145000 : msrp === 199999 ? 275000 : null, price_cents: current == null ? null : Math.round(current * 100), availability: "Unknown" });
     } catch { /* Ignore non-retailer and malformed links. */ }
   }

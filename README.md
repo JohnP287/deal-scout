@@ -1,11 +1,13 @@
 # DealScout
 
-Open-source resale deal intelligence for new, sealed products. DealScout checks exact retailer product pages, keeps a price/stock history, compares current pricing with a manually verified MSRP, and estimates net resale profit after tax and marketplace fees.
+Open-source resale deal intelligence for new, sealed products. DealScout discovers gaming-tech offers across 41 approved retailer and manufacturer domains, checks exact product pages, keeps a price/stock history, compares current pricing with an official or manually verified MSRP, and estimates net resale profit after tax and marketplace fees.
 
 ## Accuracy model
 
 - Product price, availability, condition and currency come from retailer JSON-LD when exposed.
-- MSRP is entered separately and is never inferred from crossed-out or “was” pricing.
+- MSRP is accepted from a manufacturer-owned store page or entered with an official source; retailer crossed-out or “was” pricing is never treated as MSRP.
+- Search pages are discovery-only. A listing cannot appear publicly until its exact product page confirms price, new condition and stock.
+- Promo codes must appear on the retailer or manufacturer page; expired-code language is rejected.
 - Failed and blocked checks remain visible instead of being treated as out of stock.
 - A check is considered fresh for 45 minutes.
 - Default profit math assumes 6% purchase tax and 13.25% marketplace fees.

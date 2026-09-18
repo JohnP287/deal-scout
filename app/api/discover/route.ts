@@ -13,6 +13,10 @@ const SEARCHES: Array<[string, string]> = [
   , ["B&H Photo", "gaming monitor"], ["B&H Photo", "graphics card"], ["Adorama", "gaming monitor"], ["Dell", "gaming laptop"],
   ["HP", "weekly gaming deals"], ["Lenovo", "gaming laptop"], ["ASUS", "gaming monitor"], ["Samsung", "gaming monitor"],
   ["Corsair", "gaming keyboard"], ["Logitech G", "gaming mouse"], ["Razer", "gaming headset"], ["Woot", "gaming"]
+  , ["Antonline", "gaming"], ["Central Computers", "gaming"], ["Abt", "gaming monitors"], ["Costco", "pc gaming"],
+  ["SteelSeries", "deals"], ["HyperX", "sale"], ["Elgato", "sale"], ["NZXT", "sale"], ["MSI", "sale"], ["Gigabyte", "store"],
+  ["ViewSonic", "gaming monitors"], ["AMD", "direct buy"], ["Microsoft Store", "gaming sale"], ["PlayStation Direct", "deals"],
+  ["Nintendo", "sales and deals"], ["Meta", "quest"], ["Monoprice", "gaming"], ["PNY", "promotions"], ["Acer", "monitor sale"], ["LG", "promotions"], ["Sony", "sale"]
 ];
 function sourceUrl(retailer: string, query: string) {
   const q = encodeURIComponent(query);
@@ -34,6 +38,27 @@ function sourceUrl(retailer: string, query: string) {
   if (retailer === "Corsair") return `https://www.corsair.com/us/en/search?q=${q}`;
   if (retailer === "Logitech G") return `https://www.logitechg.com/en-us/search.html?q=${q}`;
   if (retailer === "Razer") return `https://www.razer.com/search/${q}`;
+  if (retailer === "Antonline") return "https://www.antonline.com/nvidia/geforce-rtx50/laptops";
+  if (retailer === "Central Computers") return "https://www.centralcomputer.com/all-products/hardware/video-cards.html";
+  if (retailer === "Abt") return "https://www.abt.com/Computer-Monitors/c/442.html";
+  if (retailer === "Costco") return "https://www.costco.com/pc-gaming.html";
+  if (retailer === "SteelSeries") return "https://steelseries.com/deals";
+  if (retailer === "HyperX") return "https://hyperx.com/collections/sale";
+  if (retailer === "Elgato") return "https://www.elgato.com/us/en/s/sale";
+  if (retailer === "NZXT") return "https://nzxt.com/collection/sale";
+  if (retailer === "MSI") return "https://us-store.msi.com/Sale";
+  if (retailer === "Gigabyte") return "https://store.gigabyte.us/";
+  if (retailer === "ViewSonic") return "https://www.viewsonic.com/us/products/shop/monitors/gaming.html";
+  if (retailer === "AMD") return "https://www.amd.com/en/direct-buy/us";
+  if (retailer === "Microsoft Store") return "https://www.microsoft.com/en-us/store/b/sale";
+  if (retailer === "PlayStation Direct") return "https://direct.playstation.com/en-us/deals";
+  if (retailer === "Nintendo") return "https://www.nintendo.com/us/store/sales-and-deals/";
+  if (retailer === "Meta") return "https://www.meta.com/quest/";
+  if (retailer === "Monoprice") return "https://www.monoprice.com/category/computers-&-gaming";
+  if (retailer === "PNY") return "https://www.pny.com/promotions";
+  if (retailer === "Acer") return "https://store.acer.com/en-us/sale/monitor-sale";
+  if (retailer === "LG") return "https://www.lg.com/us/promotions";
+  if (retailer === "Sony") return "https://electronics.sony.com/sale/c/all-sale";
   return `https://www.woot.com/search?keyword=${q}`;
 }
 const SOURCES = SEARCHES.map(([retailer, query]) => sourceUrl(retailer, query));
@@ -66,5 +91,5 @@ export async function POST(request: Request) {
       }
     }
   }
-  return Response.json({ discovered, batch: batch + 1, batches: batchCount, sources_checked: sourcesChecked, sources_without_results: [...new Set(sourceErrors)].length, categories: [...new Set(SEARCHES.map(([, query]) => query))].length, at: new Date().toISOString() });
+  return Response.json({ discovered, batch: batch + 1, batches: batchCount, sources_checked: sourcesChecked, sources_total: SOURCES.length, sources_without_results: [...new Set(sourceErrors)].length, categories: [...new Set(SEARCHES.map(([, query]) => query))].length, at: new Date().toISOString() });
 }
