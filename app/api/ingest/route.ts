@@ -36,16 +36,19 @@ export async function POST(request: Request) {
       }
     }
     if (!product) { skipped++; continue; }
-    const availability = clean(item.availability, 40) || null; const condition = clean(item.condition, 40) || "NewCondition";
+    const requestedSourceType = clean(item.source_type, 30);
+    const listingOnly = requestedSourceType === "github-listing";
+    const availability = listingOnly ? "Unknown" : clean(item.availability, 40) || null; const condition = clean(item.condition, 40) || "NewCondition";
     const promo = clean(item.promo_code, 28).toUpperCase(); const validPromo = /^[A-Z0-9][A-Z0-9-]{2,27}$/.test(promo) ? promo : null;
     const promotionText = validPromo ? clean(item.promotion_text, 180) || `Use code ${validPromo}` : null;
-    const sourceType = ["github-direct", "github-listing", "retailer-api"].includes(clean(item.source_type, 30)) ? clean(item.source_type, 30) : "github-direct";
+    const sourceType = ["github-direct", "github-listing", "retailer-api"].includes(requestedSourceType) ? requestedSourceType : "github-direct";
+    const storedConfidence = listingOnly ? Math.min(confidence, 72) : confidence;
     let sourceUrl = productUrl;
     if (item.source_url) { try { sourceUrl = safeRetailerUrl(item.source_url).url.toString(); } catch { sourceUrl = productUrl; } }
     const duplicate = await db().prepare("SELECT id FROM observations WHERE product_id = ? AND price_cents = ? AND coalesce(availability, '') = coalesce(?, '') AND coalesce(promo_code, '') = coalesce(?, '') AND checked_at >= datetime('now', '-20 minutes') LIMIT 1").bind(product.id, price, availability, validPromo).first();
     if (duplicate) { skipped++; continue; }
     await db().batch([
-      db().prepare("INSERT INTO observations (product_id, price_cents, currency, availability, condition, confidence, error, promo_code, promotion_text, source_type, source_url) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)").bind(product.id, price, clean(item.currency, 8) || "USD", availability, condition, confidence, validPromo, promotionText, sourceType, sourceUrl),
+      db().prepare("INSERT INTO observations (product_id, price_cents, currency, availability, condition, confidence, error, promo_code, promotion_text, source_type, source_url) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)").bind(product.id, price, clean(item.currency, 8) || "USD", availability, condition, storedConfidence, validPromo, promotionText, sourceType, sourceUrl),
       db().prepare("UPDATE products SET last_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(product.id),
     ]);
     accepted++;

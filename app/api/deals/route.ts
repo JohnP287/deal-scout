@@ -21,6 +21,7 @@ export async function GET() {
     const dataState = !price && row.last_error ? "BLOCKED" : !price ? "PENDING" : refreshFailed || (ageMinutes ?? Infinity) > 1440 ? "STALE" : (ageMinutes ?? Infinity) <= 45 ? "LIVE" : "VERIFIED";
     const inStock = String(row.availability ?? "").toLowerCase().includes("instock"); const newItem = !row.condition || String(row.condition).toLowerCase().includes("new");
     const sourceType = String(row.source_type ?? "legacy-verified"); const baseConfidence = Number(row.confidence ?? 0); const trustedSource = baseConfidence >= 76 && ["legacy-verified", "site-direct", "retailer-listing", "github-direct", "github-listing", "retailer-api"].includes(sourceType);
+    const stockTrusted = (sourceType === "site-direct" && baseConfidence >= 88) || (sourceType === "github-direct" && baseConfidence >= 95) || (sourceType === "retailer-api" && baseConfidence >= 90);
     const tax = price == null || !trustedSource ? null : Math.round(price * .06); const acquisition = price == null || tax == null ? null : price + tax; const fees = resale == null || !trustedSource ? null : Math.round(resale * .1325);
     const net = resale == null || acquisition == null || fees == null ? null : resale - fees - acquisition; const roi = net == null || acquisition == null ? null : net / acquisition * 100;
     const hasReference = reference > 0; const discount = price != null && hasReference ? (reference - price) / reference * 100 : null;
@@ -29,7 +30,7 @@ export async function GET() {
     const status = price == null || !hasReference ? "unknown" : trustedFresh && inStock && newItem && (discount ?? 0) >= 10 && (net == null || (net >= 7500 && (roi ?? 0) >= 15)) ? "buy" : (discount ?? -100) >= 0 ? "watch" : "skip";
     const score = Math.max(0, Math.min(100, Math.round((price ? 25 : 0) + (dataState === "LIVE" ? 20 : dataState === "VERIFIED" ? 14 : dataState === "STALE" ? 5 : 0) + (inStock ? 15 : 0) + Math.max(0, Math.min(25, discount ?? 0)) + Math.max(0, Math.min(15, roi == null ? 0 : roi / 2)))));
     const sourceLabel = sourceType === "github-direct" ? "Independent retailer check" : sourceType === "github-listing" || sourceType === "retailer-listing" ? "Retailer search listing" : sourceType === "retailer-api" ? "Retailer API" : "Retailer product page";
-    return { ...row, error: row.last_error, checked_at: row.price_checked_at, status, data_state: dataState, confidence_score: confidence, price_trusted: trustedSource, price_source: price ? sourceLabel : "No successful source", discount_percent: discount, tax_cents: tax, fees_cents: fees, acquisition_cents: acquisition, resale_comp_cents: resale, resale_source: resale ? "Curated resale target" : "No verified resale comp", reference_source: hasReference ? (/founders edition/i.test(String(row.title)) ? "Manufacturer MSRP" : "Retailer reference") : "No verified MSRP", net_profit_cents: net, roi_percent: roi, deal_score: score, refresh_failed: refreshFailed, age_minutes: ageMinutes };
+    return { ...row, error: row.last_error, checked_at: row.price_checked_at, status, data_state: dataState, confidence_score: confidence, price_trusted: trustedSource, stock_trusted: stockTrusted, price_source: price ? sourceLabel : "No successful source", discount_percent: discount, tax_cents: tax, fees_cents: fees, acquisition_cents: acquisition, resale_comp_cents: resale, resale_source: resale ? "Curated resale target" : "No verified resale comp", reference_source: hasReference ? (/founders edition/i.test(String(row.title)) ? "Manufacturer MSRP" : "Retailer reference") : "No verified MSRP", net_profit_cents: net, roi_percent: roi, deal_score: score, refresh_failed: refreshFailed, age_minutes: ageMinutes };
   }).sort((a, b) => Number(b.deal_score) - Number(a.deal_score) || Number(b.price_cents != null) - Number(a.price_cents != null) || String(b.price_checked_at ?? "").localeCompare(String(a.price_checked_at ?? "")));
   const seen = new Set<string>();
   const deals = ranked.filter((deal) => {
@@ -37,7 +38,7 @@ export async function GET() {
     const current = deal.data_state === "LIVE" || deal.data_state === "VERIFIED";
     const inStock = String(deal.availability ?? "").toLowerCase().includes("instock");
     const newItem = !deal.condition || String(deal.condition).toLowerCase().includes("new");
-    if (!deal.price_trusted || !current || !inStock || !newItem || price <= 0 || msrp <= 0 || price > msrp) return false;
+    if (!deal.price_trusted || !deal.stock_trusted || !current || !inStock || !newItem || price <= 0 || msrp <= 0 || price > msrp) return false;
     const key = `${String(deal.retailer).toLowerCase()}|${String(deal.title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`;
     if (seen.has(key)) return false; seen.add(key); return true;
   });

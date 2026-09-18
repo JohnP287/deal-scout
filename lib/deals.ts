@@ -70,8 +70,8 @@ export function discoverProductLinks(html: string, sourceUrl: string) {
       const card = cleanText(rawCard).replace(/\$\s*([0-9,]+)\s*\.\s*(\d{2})/g, "$$$1.$2");
       const prices = [...card.matchAll(/\$\s*([0-9]{1,5}(?:,[0-9]{3})*(?:\.\d{2})?)/g)].map((p) => Number(p[1].replace(/,/g, ""))).filter((p) => Number.isFinite(p) && p >= 20 && p <= 20_000);
       const current = prices[0] ?? null; const reference = current == null ? null : prices.find((p) => p > current * 1.03 && p < current * 2.5) ?? null;
-      const known = msrp || (reference ? Math.round(reference * 100) : 0); const inStock = /add to cart|in stock|shipping|pickup|ready in|available/i.test(card);
-      found.set(url, { title, url, retailer: safe.retailer, category: categoryFor(title), msrp_cents: known, expected_resale_cents: msrp === 99999 ? 145000 : msrp === 199999 ? 275000 : null, price_cents: current == null ? null : Math.round(current * 100), availability: inStock ? "InStock" : null });
+      const known = msrp || (reference ? Math.round(reference * 100) : 0);
+      found.set(url, { title, url, retailer: safe.retailer, category: categoryFor(title), msrp_cents: known, expected_resale_cents: msrp === 99999 ? 145000 : msrp === 199999 ? 275000 : null, price_cents: current == null ? null : Math.round(current * 100), availability: "Unknown" });
     } catch { /* Ignore non-retailer and malformed links. */ }
   }
   return [...found.values()].slice(0, 80);
